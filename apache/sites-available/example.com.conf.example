@@ -1,0 +1,75 @@
+<VirtualHost *:443>
+    ServerName example.com
+    ServerAlias www.example.com
+
+    DocumentRoot /var/www/example.com/public
+    ErrorLog  ${APACHE_LOG_DIR}/example.com_error.log
+    CustomLog ${APACHE_LOG_DIR}/example.com_access.log combined
+
+    # --- SSL (example only; do not commit real cert paths) ---
+    SSLEngine on
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+    SSLHonorCipherOrder on
+    SSLCertificateFile    /etc/ssl/example/fullchain.pem
+    SSLCertificateKeyFile /etc/ssl/example/privkey.pem
+
+    # --- Cloudflare real IP (recommended if proxied) ---
+    # Enable: a2enmod remoteip && a2enconf cloudflare-realip
+    IncludeOptional conf-available/cloudflare-realip.conf
+
+    # --- ModSecurity (example include) ---
+    IncludeOptional conf-available/security2.conf
+
+    RewriteEngine On
+
+    # =================================================
+    # PoW GATE: skip rules
+    # =================================================
+
+    # Skip status area
+    RewriteCond %{REQUEST_URI} ^/status/ [NC]
+    RewriteRule ^ - [L]
+
+    # Skip PoW endpoints themselves
+    RewriteCond %{REQUEST_URI} ^/__ab/ [NC]
+    RewriteRule ^ - [L]
+
+    # Only gate GET/HEAD (never gate POST/PUT/etc.)
+    RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+    RewriteRule ^ - [L]
+
+    # Skip common static assets
+    RewriteCond %{REQUEST_URI} \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ [NC]
+    RewriteRule ^ - [L]
+
+    # If missing the abp cookie, require PoW
+    RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
+    RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
+
+    # -------------------------------------------------
+    # PoW endpoints: prevent caching
+    # -------------------------------------------------
+    <Directory "/var/www/example.com/public/__ab">
+        Require all granted
+        <IfModule mod_headers.c>
+            Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+            Header always set Pragma "no-cache"
+            Header always set Expires "0"
+            Header always set X-Content-Type-Options "nosniff"
+            Header always set Referrer-Policy "no-referrer"
+        </IfModule>
+    </Directory>
+
+    # Site root
+    <Directory "/var/www/example.com/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Optional: cache static assets
+    <IfModule mod_headers.c>
+        <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$">
+            Header set Cache-Control "public, max-age=2592000, immutable"
+        </FilesMatch>
+    </IfModule>
+</VirtualHost>
