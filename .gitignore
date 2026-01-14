@@ -1,25 +1,121 @@
-# CakePHP 3
+###############################################################################
+# CakePHP conventions
+###############################################################################
+/vendor/
+/tmp/
+/logs/
 
-/vendor/*
-/config/app.php
+# CakePHP local config (never commit)
+config/app_local.php
+config/.env
+config/.env.*
 
-/tmp/cache/models/*
-!/tmp/cache/models/empty
-/tmp/cache/persistent/*
-!/tmp/cache/persistent/empty
-/tmp/cache/views/*
-!/tmp/cache/views/empty
-/tmp/sessions/*
-!/tmp/sessions/empty
-/tmp/tests/*
-!/tmp/tests/empty
+# PHPUnit cache
+.phpunit.result.cache
 
-/logs/*
-!/logs/empty
+###############################################################################
+# Secrets / env (general)
+###############################################################################
+.env
+.env.*
+/env/*.env
+/env/*.local
+/env/*.prod
+/env/*.secret
 
-# CakePHP 2
+*.secret
+*.keyfile
+*.credentials
 
-/app/tmp/*
-/app/Config/core.php
-/app/Config/database.php
-/vendors/*
+###############################################################################
+# TLS / SSL certs and keys (NEVER COMMIT)
+###############################################################################
+*.key
+*.pem
+*.crt
+*.cer
+*.pfx
+*.p12
+privkey*
+fullchain*
+chain.pem
+cert.pem
+/etc/letsencrypt/
+/acme/
+
+###############################################################################
+# Logs (Apache / WAF / system)
+###############################################################################
+*.log
+var/log/
+log/
+logs/
+
+# ModSecurity logs
+modsec_audit.log
+modsec_debug.log
+modsecurity.log
+audit.log
+modsec/
+
+###############################################################################
+# Runtime / cache / temp
+###############################################################################
+*.cache
+*.tmp
+*.temp
+cache/
+temp/
+tmp/
+
+# PHP sessions
+sess_*
+
+###############################################################################
+# Node/tooling (optional)
+###############################################################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+###############################################################################
+# IDE / Editor files
+###############################################################################
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*.bak
+*~
+.netrwhist
+
+###############################################################################
+# OS files
+###############################################################################
+.DS_Store
+Thumbs.db
+Desktop.ini
+.directory
+
+###############################################################################
+# Assets policy for this repo
+###############################################################################
+# Keep placeholders/docs in assets/img, but do not commit real site images by default
+assets/img/*
+!assets/img/.gitkeep
+!assets/img/README.md
+
+###############################################################################
+# Safety nets
+###############################################################################
+*dump*
+*backup*
+*.sql
+*.sqlite
+*.db
+cookies.txt
+headers.txt
+curl.out
+session.txt
