@@ -194,30 +194,6 @@ Reload Apache:
 ```bash
 sudo systemctl reload apache2
 ```
-## Additional DDoS Mitigation (Apache-level)
-
-In addition to PoW + ModSecurity rate limiting, this deployment uses Apache-level connection defenses to reduce impact from common low-and-slow attacks (e.g., Slowloris / request header drip).
-
-Typical hardening includes:
-- limiting request header/body read timeouts
-- limiting concurrent connections per IP
-- keeping keep-alive behavior conservative under load
-- ensuring reverse proxy/CDN IP restoration is correct (if applicable)
-
-> Note: Specific values are deployment-specific and intentionally not published verbatim in this repo.
-> The goal is to provide the pattern, not a fingerprintable configuration.
-
-### Apache modules commonly used for slow/connection attacks
-
-Depending on your distro and Apache build, the following may be used:
-- `mod_reqtimeout` (request read timeouts; strong Slowloris mitigation)
-- `mod_remoteip` (real client IP behind Cloudflare)
-- MPM tuning (worker/event/prefork) for connection handling under pressure
-
-These sit *alongside*:
-- PoW (application-layer cost)
-- ModSecurity rules (endpoint rate limiting + WAF-style controls)
-
 
 ### C) Install the PoW rate-limit rules
 ```bash
@@ -251,6 +227,31 @@ done
 You should see `429` responses once the limit is exceeded.
 
 ---
+
+## Additional DDoS Mitigation (Apache-level)
+
+In addition to PoW + ModSecurity rate limiting, this deployment uses Apache-level connection defenses to reduce impact from common low-and-slow attacks (e.g., Slowloris / request header drip).
+
+Typical hardening includes:
+- limiting request header/body read timeouts
+- limiting concurrent connections per IP
+- keeping keep-alive behavior conservative under load
+- ensuring reverse proxy/CDN IP restoration is correct (if applicable)
+
+> Note: Specific values are deployment-specific and intentionally not published verbatim in this repo.
+> The goal is to provide the pattern, not a fingerprintable configuration.
+
+### Apache modules commonly used for slow/connection attacks
+
+Depending on your distro and Apache build, the following may be used:
+- `mod_reqtimeout` (request read timeouts; strong Slowloris mitigation)
+- `mod_remoteip` (real client IP behind Cloudflare)
+- MPM tuning (worker/event/prefork) for connection handling under pressure
+
+These sit *alongside*:
+- PoW (application-layer cost)
+- ModSecurity rules (endpoint rate limiting + WAF-style controls)
+
 
 ## Cloudflare (recommended configuration)
 
