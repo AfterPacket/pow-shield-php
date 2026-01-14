@@ -1,0 +1,6 @@
+<IfModule security2_module>
+    SecRuleEngine On
+
+    # Include AB PoW ratelimit rules
+    IncludeOptional conf/modsecurity/ab_pow_ratelimit.conf
+</IfModule>
