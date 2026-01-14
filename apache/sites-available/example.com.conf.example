@@ -1,75 +1,122 @@
+# ==============================
+# MINIMAL EXAMPLE.COM VHOSTS
+# ONLY:
+#  - PoW gate (cookie abp) with /__ab/pow.php + /__ab/pow-verify.php
+#  - Rate-limit ONLY /__ab/* (optional include)
+#  - Skip /status/ entirely
+#  - Skip static assets
+#  - Cloudflare-safe (does NOT block CF)
+# ==============================
+
+
+# --------------------------
+# HTTP :80
+# - redirect to https
+# - but keep PoW rules here too (so direct :80 hits still behave)
+# --------------------------
+<VirtualHost *:80>
+  ServerName example.com
+  ServerAlias www.example.com
+
+  DocumentRoot /var/www/example.com/public
+  DirectoryIndex index.php index.html
+
+  ErrorLog  ${APACHE_LOG_DIR}/example.com_error.log
+  CustomLog ${APACHE_LOG_DIR}/example.com_access.log combined
+
+  # (Example) env secret. Prefer real OS env / systemd for secrets.
+  # SetEnv AB_POW_SECRET "LONG_RANDOM_SECRET_64+CHARS"
+
+  RewriteEngine On
+
+  # 0) Skip /status/ entirely (no PoW)
+  RewriteRule ^status/ - [L]
+
+  # 1) Skip the PoW endpoints themselves (prevents loops)
+  RewriteRule ^__ab/ - [L]
+
+  # 2) Only gate GET/HEAD
+  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+  RewriteRule ^ - [L]
+
+  # 3) Skip common static assets
+  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+  # 4) If missing PoW pass cookie, redirect to challenge
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
+
+  # Force HTTPS
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+
+
+# --------------------------
+# HTTPS :443
+# - main PoW enforcement
+# --------------------------
 <VirtualHost *:443>
-    ServerName example.com
-    ServerAlias www.example.com
+  ServerName example.com
+  ServerAlias www.example.com
 
-    DocumentRoot /var/www/example.com/public
-    ErrorLog  ${APACHE_LOG_DIR}/example.com_error.log
-    CustomLog ${APACHE_LOG_DIR}/example.com_access.log combined
+  DocumentRoot /var/www/example.com/public
+  DirectoryIndex index.php index.html
 
-    # --- SSL (example only; do not commit real cert paths) ---
-    SSLEngine on
-    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
-    SSLHonorCipherOrder on
-    SSLCertificateFile    /etc/ssl/example/fullchain.pem
-    SSLCertificateKeyFile /etc/ssl/example/privkey.pem
+  ErrorLog  ${APACHE_LOG_DIR}/example.com_ssl_error.log
+  CustomLog ${APACHE_LOG_DIR}/example.com_ssl_access.log combined
 
-    # --- Cloudflare real IP (recommended if proxied) ---
-    # Enable: a2enmod remoteip && a2enconf cloudflare-realip
-    IncludeOptional conf-available/cloudflare-realip.conf
+  SSLEngine on
+  SSLCertificateFile    /etc/ssl/example.com/fullchain.pem
+  SSLCertificateKeyFile /etc/ssl/example.com/privkey.pem
+  SSLProtocol +TLSv1.2 +TLSv1.3
 
-    # --- ModSecurity (example include) ---
-    IncludeOptional conf-available/security2.conf
+  # (Example) env secret. Prefer real OS env / systemd for secrets.
+  # SetEnv AB_POW_SECRET "LONG_RANDOM_SECRET_64+CHARS"
 
-    RewriteEngine On
+  # Optional: include your rate-limit rules (ONLY for /__ab/*)
+  # IncludeOptional /etc/modsecurity/ab_pow_ratelimit.conf
+  # Header always set Retry-After "30" env=AB_RL
 
-    # =================================================
-    # PoW GATE: skip rules
-    # =================================================
+  # Basic safety headers (won’t break PoW)
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 
-    # Skip status area
-    RewriteCond %{REQUEST_URI} ^/status/ [NC]
-    RewriteRule ^ - [L]
+  # PHP-FPM (example socket; replace with yours)
+  <FilesMatch \.php$>
+    SetHandler "proxy:unix:/run/php/php-fpm-example.sock|fcgi://localhost/"
+  </FilesMatch>
 
-    # Skip PoW endpoints themselves
-    RewriteCond %{REQUEST_URI} ^/__ab/ [NC]
-    RewriteRule ^ - [L]
+  <Directory /var/www/example.com/public>
+    Options -Indexes +SymLinksIfOwnerMatch
+    AllowOverride All
+    Require all granted
+  </Directory>
 
-    # Only gate GET/HEAD (never gate POST/PUT/etc.)
-    RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
-    RewriteRule ^ - [L]
+  # Never cache /status/*
+  <LocationMatch "^/status(/|$)">
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
+  </LocationMatch>
 
-    # Skip common static assets
-    RewriteCond %{REQUEST_URI} \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ [NC]
-    RewriteRule ^ - [L]
+  RewriteEngine On
 
-    # If missing the abp cookie, require PoW
-    RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
-    RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
+  # 0) Skip /status/ entirely (no PoW)
+  RewriteRule ^status/ - [L]
 
-    # -------------------------------------------------
-    # PoW endpoints: prevent caching
-    # -------------------------------------------------
-    <Directory "/var/www/example.com/public/__ab">
-        Require all granted
-        <IfModule mod_headers.c>
-            Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-            Header always set Pragma "no-cache"
-            Header always set Expires "0"
-            Header always set X-Content-Type-Options "nosniff"
-            Header always set Referrer-Policy "no-referrer"
-        </IfModule>
-    </Directory>
+  # 1) Skip the PoW endpoints themselves (prevents loops)
+  RewriteRule ^__ab/ - [L]
 
-    # Site root
-    <Directory "/var/www/example.com/public">
-        AllowOverride All
-        Require all granted
-    </Directory>
+  # 2) Only gate GET/HEAD
+  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+  RewriteRule ^ - [L]
 
-    # Optional: cache static assets
-    <IfModule mod_headers.c>
-        <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$">
-            Header set Cache-Control "public, max-age=2592000, immutable"
-        </FilesMatch>
-    </IfModule>
+  # 3) Skip common static assets
+  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+  # 4) If missing PoW pass cookie, redirect to challenge
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
+
 </VirtualHost>
