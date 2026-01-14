@@ -42,6 +42,25 @@ This repository intentionally excludes:
 
 ---
 
+## 🔴 Live Production Example
+
+A live deployment of **pow-shield-php** is running in production here:
+
+**https://lassiter.eu**
+
+This site uses:
+- Proof-of-Work (PoW) gateway for unauthenticated traffic
+- ModSecurity rate limiting on PoW endpoints
+- Apache connection-level protections (Slowloris / low-and-slow mitigation)
+- Cloudflare as CDN + TLS terminator (no bot challenges, no CAPTCHA)
+
+The deployment demonstrates real-world behavior under normal traffic
+conditions and during active bot pressure.
+
+> ⚠️ Note  
+> Configuration values, secrets, and thresholds used on the live site are
+> intentionally not published in this repository.
+
 ## Requirements
 
 ### Origin
