@@ -13,6 +13,25 @@ declare(strict_types=1);
 
 $SECRET = getenv('AB_POW_SECRET') ?: 'CHANGE_ME_LONG_RANDOM_SECRET_64+CHARS';
 
+// Force HTTPS (needed for WebCrypto)
+function is_https_request(): bool {
+  if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
+
+  $xfp = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+  if ($xfp === 'https') return true;
+
+  $cfv = (string)($_SERVER['HTTP_CF_VISITOR'] ?? '');
+  if ($cfv !== '' && strpos($cfv, '"https"') !== false) return true;
+
+  return false;
+}
+
+if (!is_https_request()) {
+  $host = (string)($_SERVER['HTTP_HOST'] ?? 'lassiter.eu');
+  $uri  = (string)($_SERVER['REQUEST_URI'] ?? '/__ab/pow.php');
+  header("Location: https://{$host}{$uri}", true, 302);
+  exit;
+}
 // Refuse to run with default/weak secret
 if ($SECRET === 'CHANGE_ME_LONG_RANDOM_SECRET_64+CHARS' || strlen($SECRET) < 48) {
   http_response_code(500);
@@ -53,6 +72,8 @@ function is_privacy_ua(): bool {
   // if (strpos($ua, 'waterfox') !== false) return true;
   return false;
 }
+
+
 
 function safe_rel_url(string $u): string {
   $u = trim($u);
