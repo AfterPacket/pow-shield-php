@@ -56,3 +56,37 @@ SecRule REQUEST_HEADERS:Content-Type "application/json" \
 - [ ] A protected URL without cookie `abp` redirects to `/__ab/pow.php`
 - [ ] PoW completes and sets cookie `abp`
 - [ ] Abuse triggers 429 on PoW endpoints (ModSecurity)
+
+
+
+---
+
+# `docs/installation-checklist.md`
+
+```md
+# Installation Checklist
+
+## Files
+- [ ] `__ab/pow.php` deployed
+- [ ] `__ab/pow-verify.php` deployed
+- [ ] `modsecurity/ab_pow_ratelimit.conf` installed at:
+      `/etc/apache2/conf/modsecurity/ab_pow_ratelimit.conf`
+
+## Secret
+- [ ] `AB_POW_SECRET` set (64+ chars recommended)
+
+## Cloudflare (if used)
+- [ ] Bot Fight Mode OFF
+- [ ] Cache bypass for:
+  - `/__ab/pow.php`
+  - `/__ab/pow-verify.php`
+
+## Real IP (if used with Cloudflare)
+- [ ] `a2enmod remoteip`
+- [ ] `cloudflare-realip.conf` enabled
+- [ ] Apache reloaded
+
+## Validation
+- [ ] A protected URL without cookie `abp` redirects to `/__ab/pow.php`
+- [ ] PoW completes and sets cookie `abp`
+- [ ] Abuse triggers 429 on PoW endpoints (ModSecurity)
