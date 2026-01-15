@@ -327,8 +327,11 @@ header(
               <path fill="rgba(7,10,20,.92)" d="M13.2 6.6 8.8 13h3.1l-1 4.4 4.4-6.4h-3.1l1-4.4z"/>
             </svg>
             <span class="txt">
-                     PoW Shield • Created By
-              <a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">AfterPacket</a>
+                PoW Shield • Created By&nbsp;
+<a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">
+  AfterPacket
+</a>
+
             </span>
           </div>
         </div>
