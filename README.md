@@ -310,7 +310,7 @@ Fix:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GNU GENERAL PUBLIC LICENSE— see [LICENSE](LICENSE).
 
 ---
 
