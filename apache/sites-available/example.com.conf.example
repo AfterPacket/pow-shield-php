@@ -1,18 +1,25 @@
 # ==============================
 # MINIMAL EXAMPLE.COM VHOSTS
 # ONLY:
-#  - PoW gate (cookie abp) with /__ab/pow.php + /__ab/pow-verify.php
-#  - Rate-limit ONLY /__ab/* (optional include)
+#  - PoW gate (cookie "abp") via /__ab/pow.php + /__ab/pow-verify.php
+#  - GitHub API reverse proxy + disk cache at /api/github/users/<user>/repos
+#  - Optional rate-limit ONLY /__ab/* (include)
 #  - Skip /status/ entirely
 #  - Skip static assets
 #  - Cloudflare-safe (does NOT block CF)
+#
+# NOTES:
+#  - cookie format expected here is the 4-part format:
+#      abp=ts.exp.uaHash.sig
+#    If you switch to "v2.<payload>.<sig>", change the cookie regex below.
 # ==============================
 
 
 # --------------------------
 # HTTP :80
 # - redirect to https
-# - but keep PoW rules here too (so direct :80 hits still behave)
+# - do NOT run PoW here (Secure cookie won't be sent on http)
+# - keep /.well-known (ACME) open
 # --------------------------
 <VirtualHost *:80>
   ServerName example.com
@@ -24,36 +31,20 @@
   ErrorLog  ${APACHE_LOG_DIR}/example.com_error.log
   CustomLog ${APACHE_LOG_DIR}/example.com_access.log combined
 
-  # (Example) env secret. Prefer real OS env / systemd for secrets.
-  # SetEnv AB_POW_SECRET "LONG_RANDOM_SECRET_64+CHARS"
-
+  # ACME
+  ProxyPass /.well-known !
   RewriteEngine On
+  RewriteRule ^/\.well-known/ - [L]
 
-  # 0) Skip /status/ entirely (no PoW)
-  RewriteRule ^status/ - [L]
-
-  # 1) Skip the PoW endpoints themselves (prevents loops)
-  RewriteRule ^__ab/ - [L]
-
-  # 2) Only gate GET/HEAD
-  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
-  RewriteRule ^ - [L]
-
-  # 3) Skip common static assets
-  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
-
-  # 4) If missing PoW pass cookie, redirect to challenge
-  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
-  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
-
-  # Force HTTPS
+  # Straight to HTTPS
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 </VirtualHost>
 
 
 # --------------------------
 # HTTPS :443
-# - main PoW enforcement
+# - PoW enforcement
+# - GitHub proxy + cache
 # --------------------------
 <VirtualHost *:443>
   ServerName example.com
@@ -70,19 +61,28 @@
   SSLCertificateKeyFile /etc/ssl/example.com/privkey.pem
   SSLProtocol +TLSv1.2 +TLSv1.3
 
-  # (Example) env secret. Prefer real OS env / systemd for secrets.
-  # SetEnv AB_POW_SECRET "LONG_RANDOM_SECRET_64+CHARS"
+  # If you need ACME over HTTPS too
+  ProxyPass /.well-known !
 
-  # Optional: include your rate-limit rules (ONLY for /__ab/*)
+  # ---- Secrets (example) ----
+  # Prefer putting these in systemd env for apache2, or an included env file.
+  # If using an include:
+  # IncludeOptional /etc/apache2/pow.env
+  #
+  # Or direct SetEnv examples:
+  # SetEnv AB_POW_SECRET "LONG_RANDOM_SECRET_64+CHARS"
+  # SetEnv GITHUB_API_TOKEN "ghp_xxx"
+
+  # ---- Optional: rate-limit ONLY /__ab/* (ModSecurity or other include) ----
   # IncludeOptional /etc/modsecurity/ab_pow_ratelimit.conf
   # Header always set Retry-After "30" env=AB_RL
 
-  # Basic safety headers (won’t break PoW)
+  # ---- Basic headers (won’t break PoW) ----
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "no-referrer"
   Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 
-  # PHP-FPM (example socket; replace with yours)
+  # ---- PHP-FPM (example) ----
   <FilesMatch \.php$>
     SetHandler "proxy:unix:/run/php/php-fpm-example.sock|fcgi://localhost/"
   </FilesMatch>
@@ -93,30 +93,89 @@
     Require all granted
   </Directory>
 
-  # Never cache /status/*
+  # ---- Never cache /status/* ----
   <LocationMatch "^/status(/|$)">
     Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header always set Pragma "no-cache"
     Header always set Expires "0"
   </LocationMatch>
 
+  # ============================
+  # GitHub API Reverse Proxy + Cache
+  # ============================
+  SSLProxyEngine On
+  ProxyRequests Off
+  ProxyPreserveHost Off
+
+  # mod_cache_disk (disk cache)
+  CacheRoot /var/cache/apache2
+  CacheEnable disk /api/github/
+  CacheDirLevels 2
+  CacheDirLength 2
+  CacheDefaultExpire 300
+  CacheMaxExpire 3600
+  CacheIgnoreHeaders Set-Cookie
+  CacheDetailHeader On
+
+  <IfModule cache_disk_module>
+    CacheLock On
+    CacheLockPath /tmp/mod_cache-lock
+    CacheLockMaxAge 5
+  </IfModule>
+
+  # Proxy endpoint
+  ProxyPass        "/api/github/users/AfterPacket/repos" "https://api.github.com/users/AfterPacket/repos"
+  ProxyPassReverse "/api/github/users/AfterPacket/repos" "https://api.github.com/users/AfterPacket/repos"
+
+  <Location "/api/github/users/AfterPacket/repos">
+    Require all granted
+
+    # make caching explicit (optional)
+    Header unset Cache-Control
+    Header set Cache-Control "public, max-age=300"
+
+    # GitHub API wants a UA
+    RequestHeader set User-Agent "example.com-github-proxy"
+
+    # Use env var expansion (the trailing "e" means env)
+    # This requires GITHUB_API_TOKEN to exist in Apache's environment.
+    RequestHeader set Authorization "Bearer %{GITHUB_API_TOKEN}e" env=GITHUB_API_TOKEN
+
+    Header always set X-Proxy "example-github-proxy"
+  </Location>
+
+  # ============================
+  # PoW Gate (Option 2: internal PT)
+  # URL stays clean (user sees /, not /__ab/pow.php)
+  # ============================
   RewriteEngine On
 
   # 0) Skip /status/ entirely (no PoW)
   RewriteRule ^status/ - [L]
 
-  # 1) Skip the PoW endpoints themselves (prevents loops)
+  
+  # 1) Skip the anti-bot endpoints themselves (prevents loops)
   RewriteRule ^__ab/ - [L]
 
-  # 2) Only gate GET/HEAD
+  # 2) Only gate GET/HEAD (never gate POST; verify must work)
   RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
   RewriteRule ^ - [L]
 
   # 3) Skip common static assets
   RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
 
-  # 4) If missing PoW pass cookie, redirect to challenge
-  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp= [NC]
-  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [R=302,L,NE]
+  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
+  # Expect abp=ts.exp.uaHash.sig
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
 
 </VirtualHost>
+
+
+# --------------------------------------------
+# If you later switch to v2 cookie format:
+#   abp=v2.<payload>.<sig>
+# Replace the cookie condition with:
+#
+# RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=v2\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+# --------------------------------------------
