@@ -4,36 +4,23 @@ declare(strict_types=1);
 /**
  * /__ab/pow.php
  * JS proof-of-work challenge page that sets a signed cookie via /__ab/pow-verify.php.
- * Fixes:
- * - LibreWolf/strict privacy browsers: lower difficulty + no time-based hard fail
- * - Debug is locked down (env + allowlist)
- * - Better cookie test (Secure on https)
- * - bfcache handling for Safari/mobile
+ *
+ * Token v2:
+ *   token = b64url(payload_json) . "." . b64url(hmac_sha256(b64url(payload_json), key))
+ *
+ * Features:
+ * - Centered layout + image above status
+ * - Cookie test (helps hardened browsers)
+ * - LibreWolf / privacy UA tuning (lower bits + longer TTL)
+ * - Safari/mobile bfcache handling (pageshow persisted reload)
+ * - Debug locked down via env + allowlist
+ * - Strong CSP for this page (inline script/style allowed only here)
  */
 
-$SECRET = getenv('AB_POW_SECRET') ?: 'CHANGE_ME_LONG_RANDOM_SECRET_64+CHARS';
+$SECRET = (string)(getenv('AB_POW_SECRET') ?: '');
 
-// Force HTTPS (needed for WebCrypto)
-function is_https_request(): bool {
-  if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
-
-  $xfp = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-  if ($xfp === 'https') return true;
-
-  $cfv = (string)($_SERVER['HTTP_CF_VISITOR'] ?? '');
-  if ($cfv !== '' && strpos($cfv, '"https"') !== false) return true;
-
-  return false;
-}
-
-if (!is_https_request()) {
-  $host = (string)($_SERVER['HTTP_HOST'] ?? 'lassiter.eu');
-  $uri  = (string)($_SERVER['REQUEST_URI'] ?? '/__ab/pow.php');
-  header("Location: https://{$host}{$uri}", true, 302);
-  exit;
-}
-// Refuse to run with default/weak secret
-if ($SECRET === 'CHANGE_ME_LONG_RANDOM_SECRET_64+CHARS' || strlen($SECRET) < 48) {
+// Refuse to run with missing/weak secret
+if ($SECRET === '' || strlen($SECRET) < 48) {
   http_response_code(500);
   header('Content-Type: text/plain; charset=utf-8');
   echo "PoW misconfigured: set AB_POW_SECRET (>=48 chars).";
@@ -41,70 +28,129 @@ if ($SECRET === 'CHANGE_ME_LONG_RANDOM_SECRET_64+CHARS' || strlen($SECRET) < 48)
 }
 
 $COOKIE_NAME   = 'abp';
-$COOKIE_TTL    = 60 * 60 * 6;     // verify.php should use same
 $CHALLENGE_TTL = 120;
 
-$BITS_DESKTOP  = 20;              // normal desktop
-$BITS_MOBILE   = 18;              // mobile
-$BITS_PRIVACY  = 16;              // LibreWolf/strict privacy browsers (lower = fewer false positives)
+$BITS_DESKTOP  = 20;
+$BITS_MOBILE   = 18;
+$BITS_PRIVACY  = 16;   // LibreWolf / hardened profiles
 
+// Host this locally
 $MEME_SRC = '/assets/img/clank.jpg';
 
-// ---- helpers ----
-function b64url_enc(string $bin): string { return rtrim(strtr(base64_encode($bin), '+/', '-_'), '='); }
+// -------------------- helpers --------------------
+function b64url_enc(string $bin): string {
+  return rtrim(strtr(base64_encode($bin), '+/', '-_'), '=');
+}
+function b64url_dec(string $s): string {
+  $s = strtr($s, '-_', '+/');
+  $pad = strlen($s) % 4;
+  if ($pad) $s .= str_repeat('=', 4 - $pad);
+  $out = base64_decode($s, true);
+  return is_string($out) ? $out : '';
+}
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
-function hmac_sig(string $payload, string $secret): string { return b64url_enc(hash_hmac('sha256', $payload, $secret, true)); }
+function hmac_b64(string $data, string $key): string {
+  return b64url_enc(hash_hmac('sha256', $data, $key, true));
+}
+function ua_hash_b64(): string {
+  $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+  return b64url_enc(hash('sha256', $ua, true));
+}
 
-function ua_str(): string { return (string)($_SERVER['HTTP_USER_AGENT'] ?? ''); }
+/**
+ * Key rotation model:
+ * - AB_POW_SECRET         = current key
+ * - AB_POW_SECRET_PREV    = previous key (optional)
+ * - AB_POW_KID            = current key id (e.g. "A" or "B")
+ * - AB_POW_KID_PREV       = previous key id (e.g. "B" or "A")
+ */
+function pow_keys(): array {
+  $cur  = (string)(getenv('AB_POW_SECRET') ?: '');
+  $prev = (string)(getenv('AB_POW_SECRET_PREV') ?: '');
+  $kid  = (string)(getenv('AB_POW_KID') ?: 'A');
+  $kidPrev = (string)(getenv('AB_POW_KID_PREV') ?: 'B');
+
+  $keys = [];
+  if ($cur !== '')  $keys[$kid] = $cur;
+  if ($prev !== '') $keys[$kidPrev] = $prev;
+  return $keys;
+}
+
+function token_make_v2(int $bits, int $ttlSeconds): array {
+  $keys = pow_keys();
+  if (!$keys) throw new RuntimeException("No AB_POW_SECRET set");
+
+  $kid = (string)(getenv('AB_POW_KID') ?: array_key_first($keys));
+  $key = $keys[$kid] ?? reset($keys);
+
+  $iat = time();
+  $exp = $iat + $ttlSeconds;
+
+  $payload = [
+    'v'    => 2,
+    'kid'  => $kid,
+    'iat'  => $iat,
+    'exp'  => $exp,
+    'bits' => $bits,
+    'salt' => b64url_enc(random_bytes(18)),
+    'uah'  => ua_hash_b64(),
+  ];
+
+  $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+  if (!is_string($json)) throw new RuntimeException("token json fail");
+
+  $p64 = b64url_enc($json);
+  $sig = hmac_b64($p64, $key);
+
+  return [$p64 . '.' . $sig, $payload];
+}
 
 function is_mobile_ua(): bool {
-  $ua = strtolower(ua_str());
+  $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
   foreach (['mobile','android','iphone','ipad','ipod','iemobile','windows phone','opera mini','silk','kindle'] as $n) {
     if (strpos($ua, $n) !== false) return true;
   }
   return false;
 }
-
 function is_privacy_ua(): bool {
-  $ua = strtolower(ua_str());
+  $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
   if (strpos($ua, 'librewolf') !== false) return true;
-  // add more if you want:
-  // if (strpos($ua, 'waterfox') !== false) return true;
   return false;
 }
 
-
-
+/**
+ * Only allow relative in-site paths. Prevent open redirects.
+ * Also block sending users back into /__ab/* paths.
+ */
 function safe_rel_url(string $u): string {
   $u = trim($u);
   if ($u === '' || $u[0] !== '/') return '/';
-  if (str_starts_with($u, '//')) return '/';
-  if (str_contains($u, "\r") || str_contains($u, "\n")) return '/';
-  if (str_starts_with($u, '/__ab/')) return '/';
+  if (strpos($u, '//') === 0) return '/';
+  if (strpos($u, "\r") !== false || strpos($u, "\n") !== false) return '/';
+  if (strpos($u, '/__ab/') === 0) return '/';
   return $u;
 }
 
 /**
  * Debug LOCKDOWN:
  * - must have AB_POW_DEBUG=1
- * - and the request IP must be in allowlist
+ * - and client IP in AB_POW_DEBUG_ALLOWLIST (comma-separated)
  */
 function client_ip(): string {
-  // If you have Apache mod_remoteip configured, REMOTE_ADDR will be the real client.
-  // Otherwise behind Cloudflare it’ll be a CF edge IP.
   return (string)($_SERVER['REMOTE_ADDR'] ?? '');
 }
-$ALLOW_DEBUG = (getenv('AB_POW_DEBUG') === '1');
-$DEBUG_ALLOWLIST = array_filter(array_map('trim', explode(',', (string)(getenv('AB_POW_DEBUG_ALLOWLIST') ?: ''))));
 $debug = false;
-if ($ALLOW_DEBUG && isset($_GET['debug']) && $_GET['debug'] === '1') {
-  $ip = client_ip();
-  if ($DEBUG_ALLOWLIST && in_array($ip, $DEBUG_ALLOWLIST, true)) $debug = true;
+if ((string)getenv('AB_POW_DEBUG') === '1' && (isset($_GET['debug']) && $_GET['debug'] === '1')) {
+  $allow = array_filter(array_map('trim', explode(',', (string)(getenv('AB_POW_DEBUG_ALLOWLIST') ?: ''))));
+  if ($allow) {
+    $ip = client_ip();
+    if (in_array($ip, $allow, true)) $debug = true;
+  }
 }
 
 $next = safe_rel_url((string)($_GET['next'] ?? '/'));
 $qs   = ltrim((string)($_GET['qs'] ?? ''), '?');
-$target = $next . ($qs !== '' ? (str_contains($next, '?') ? '&' : '?') . $qs : '');
+$target = $next . ($qs !== '' ? (strpos($next, '?') !== false ? '&' : '?') . $qs : '');
 
 // Tune difficulty/ttl
 $isMobile  = is_mobile_ua();
@@ -117,16 +163,9 @@ $challengeTtl = $CHALLENGE_TTL;
 if ($isMobile)  $challengeTtl = max(180, $challengeTtl);
 if ($isPrivacy) $challengeTtl = max(300, $challengeTtl);
 
-// challenge payload: ts.exp.bits.salt.uaHash
-$ts = time();
-$exp = $ts + $challengeTtl;
-$salt = b64url_enc(random_bytes(18));
-$uaHash = b64url_enc(hash('sha256', ua_str(), true));
+[$token, $tok] = token_make_v2($BITS, $challengeTtl);
 
-$payload = $ts . '.' . $exp . '.' . $BITS . '.' . $salt . '.' . $uaHash;
-$token   = $payload . '.' . hmac_sig($payload, $SECRET);
-
-// No-cache + safe headers
+// -------------------- headers --------------------
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -155,7 +194,9 @@ header(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
   <title>Checking your browser…</title>
+
   <style>
     :root{
       color-scheme: dark;
@@ -177,7 +218,9 @@ header(
         radial-gradient(1000px 700px at 80% 30%, rgba(59,130,246,.14), transparent 65%),
         var(--bg);
       color:var(--text);
-      display:flex; align-items:center; justify-content:center;
+      display:flex;
+      align-items:center;
+      justify-content:center;
       padding:20px;
       -webkit-font-smoothing:antialiased;
       text-rendering:geometricPrecision;
@@ -244,6 +287,7 @@ header(
     button:active{transform:scale(.99)}
     button:focus-visible{outline:2px solid rgba(168,85,247,.85);outline-offset:2px}
     .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+
     .diag{
       width:min(560px,100%);
       text-align:left;
@@ -258,6 +302,7 @@ header(
       overflow:auto;
       max-height:220px;
     }
+
     .pow-footer{margin-top:14px;display:flex;justify-content:center}
     .pow-credit{
       display:inline-flex;align-items:center;gap:10px;
@@ -277,6 +322,7 @@ header(
     @media (prefers-reduced-motion: reduce){.bar>div{transition:none}}
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="card">
@@ -327,11 +373,8 @@ header(
               <path fill="rgba(7,10,20,.92)" d="M13.2 6.6 8.8 13h3.1l-1 4.4 4.4-6.4h-3.1l1-4.4z"/>
             </svg>
             <span class="txt">
-                PoW Shield • Created By&nbsp;
-<a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">
-  AfterPacket
-</a>
-
+              PoW Shield • Created By&nbsp;
+              <a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">AfterPacket</a>
             </span>
           </div>
         </div>
@@ -344,6 +387,7 @@ header(
 (() => {
   const TOKEN  = <?= json_encode($token, JSON_UNESCAPED_SLASHES) ?>;
   const TARGET = <?= json_encode($target, JSON_UNESCAPED_SLASHES) ?>;
+  const BITS   = <?= (int)$BITS ?>;
   const DEBUG  = <?= $debug ? 'true' : 'false' ?>;
 
   const pbar  = document.getElementById('pbar');
@@ -359,7 +403,6 @@ header(
     eta.className = (cls || 'muted');
     eta.textContent = t;
   }
-
   function logDiag(msg){
     if (!DEBUG || !diag) return;
     diag.style.display = 'block';
@@ -387,7 +430,6 @@ header(
     const secure = (location.protocol === "https:") ? "; Secure" : "";
     document.cookie = "__ab_ct=1; Path=/; SameSite=Lax" + secure;
   } catch {}
-
   if (!hasCookie("__ab_ct")) {
     setEta("Cookies appear blocked. Enable site cookies to continue.", "danger");
     retry.style.display = "inline-block";
@@ -418,9 +460,6 @@ header(
     let counter = 0;
     let lastUI = performance.now();
     const start = performance.now();
-
-    // NOTE: No more "slow-device" hard fail.
-    // We just warn after ~15s and keep going.
     let warned = false;
 
     while (true) {
@@ -437,7 +476,6 @@ header(
         pbar.style.width = pct + "%";
 
         const elapsed = Math.max(0.1, (now - start) / 1000);
-
         if (!warned && elapsed > 15) {
           warned = true;
           setEta("Still working… this browser is running in a hardened/slow mode. Hang tight.", "muted");
@@ -448,6 +486,7 @@ header(
         await new Promise(r => setTimeout(r, 0));
       }
 
+      // hard cap as last resort
       if (counter > 4000000) throw new Error("too-hard");
     }
   }
@@ -482,15 +521,14 @@ header(
 
   async function run() {
     try {
-      const parts = TOKEN.split(".");
-      const bits = parseInt(parts[2], 10) || 20;
-
-      logDiag("UA=" + navigator.userAgent);
-      logDiag("bits=" + bits);
-      logDiag("cookiesEnabled=" + (navigator.cookieEnabled ? "yes" : "no"));
+      if (DEBUG) {
+        logDiag("UA=" + navigator.userAgent);
+        logDiag("bits=" + BITS);
+        logDiag("cookiesEnabled=" + (navigator.cookieEnabled ? "yes" : "no"));
+      }
 
       setEta("Working…", "muted");
-      const counter = await solve(bits);
+      const counter = await solve(BITS);
 
       pbar.style.width = "98%";
       setEta("Verifying…", "muted");
@@ -505,7 +543,7 @@ header(
       pbar.style.width = "0%";
 
       const msg = String(e && e.message || e);
-      logDiag("Error: " + msg);
+      if (DEBUG) logDiag("Error: " + msg);
 
       if (msg.startsWith("verify-http-429")) {
         setEta("Verify endpoint is rate-limiting you (429). Wait a moment and retry.", "danger");
