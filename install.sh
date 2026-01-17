@@ -635,7 +635,6 @@ EOF
   RewriteRule ^__ab/ - [L]
 
   # 2) Only gate GET/HEAD (never gate POST; verify must work)
-  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
   RewriteRule ^ - [L]
 
   # 3) Skip common static assets
@@ -744,7 +743,6 @@ $ssl_config
   RewriteRule ^__ab/ - [L]
 
   # 2) Only gate GET/HEAD (never gate POST; verify must work)
-  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
   RewriteRule ^ - [L]
 
   # 3) Skip common static assets
