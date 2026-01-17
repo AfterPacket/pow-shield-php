@@ -1,0 +1,6 @@
+# Restore real client IP when behind Cloudflare
+RemoteIPHeader CF-Connecting-IP
+
+# Trust ONLY Cloudflare proxies to set that header
+RemoteIPTrustedProxyList /etc/apache2/cloudflare/ips-v4.txt
+RemoteIPTrustedProxyList /etc/apache2/cloudflare/ips-v6.txt
