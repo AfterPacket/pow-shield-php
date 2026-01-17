@@ -69,6 +69,15 @@ This site uses:
 
 ## 📋 Requirements
 
+### Automatic Installation
+The installer handles all dependencies automatically. Simply run:
+```bash
+sudo ./install.sh
+```
+
+### Manual Requirements
+If installing manually, you need:
+
 ### Origin
 - PHP **8+**
 - HTTPS (required for Secure cookie + WebCrypto)
@@ -106,15 +115,117 @@ pow-shield-php/
 ├─ assets/img/
 │  ├─ README.md
 │  └─ .gitkeep
-└─ docs/
-   ├─ cloudflare-notes.md
-   ├─ installation-checklist.md
-   └─ modsecurity-global-notes.md
+├─ docs/
+│  ├─ cloudflare-notes.md
+│  ├─ installation-checklist.md
+│  └─ modsecurity-global-notes.md
+├─ install.sh              # 🆕 Automated installer
+├─ uninstall.sh            # 🆕 Automated uninstaller
+└─ README.md
 ```
 
 ---
 
-## 🛠️ Install: PoW endpoints
+## 🚀 Quick Installation
+
+We provide automated installation scripts for easy setup:
+
+### Option A: Automated Installation (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/AfterPacket/pow-shield-php.git
+cd pow-shield-php
+
+# Make scripts executable
+chmod +x install.sh uninstall.sh
+
+# Run interactive installer
+sudo ./install.sh
+```
+
+> 📖 **Full Installation Guide**: See [INSTALL.md](INSTALL.md) for detailed instructions, troubleshooting, and advanced configuration options.
+
+The installer will:
+- ✅ Install all required dependencies (Apache, PHP, OpenSSL)
+- ✅ Generate secure PoW secret automatically
+- ✅ Deploy PoW endpoints and assets
+- ✅ Configure Apache virtual hosts
+- ✅ Set up ModSecurity rate limiting (optional)
+- ✅ Configure Let's Encrypt SSL (optional)
+- ✅ Set up automatic secret rotation
+
+### Installation Options
+
+**Interactive Mode (Default)**
+```bash
+sudo ./install.sh
+```
+Follow the prompts to configure your installation.
+
+**Non-Interactive with Let's Encrypt**
+```bash
+sudo ./install.sh -d example.com -w /var/www/html -l admin@example.com -e
+```
+
+**Non-Interactive with Existing SSL**
+```bash
+sudo ./install.sh -d example.com -w /var/www/html \
+  -c /etc/ssl/certs/cert.pem -k /etc/ssl/private/key.pem -e
+```
+
+**Skip ModSecurity**
+```bash
+sudo ./install.sh -d example.com -w /var/www/html -s
+```
+
+### Installation Flags
+
+| Flag | Description |
+|------|-------------|
+| `-d, --domain` | Domain name (e.g., example.com) |
+| `-w, --webroot` | Web root directory path |
+| `-c, --cert` | SSL certificate path (optional) |
+| `-k, --key` | SSL key path (optional) |
+| `-l, --letsencrypt` | Use Let's Encrypt with email |
+| `-e, --enable` | Enable site with a2ensite after install |
+| `-s, --skip-modsec` | Skip ModSecurity installation |
+| `-n, --non-interactive` | Run without prompts |
+| `-h, --help` | Show help message |
+
+---
+
+## 🗑️ Uninstallation
+
+To completely remove pow-shield-php:
+
+```bash
+# Interactive uninstaller
+sudo ./uninstall.sh
+
+# Force removal without prompts
+sudo ./uninstall.sh -d example.com -w /var/www/html -f
+
+# Keep the PoW secret file
+sudo ./uninstall.sh -d example.com -w /var/www/html -k
+
+# Also remove ModSecurity rules
+sudo ./uninstall.sh -d example.com -w /var/www/html -m
+```
+
+The uninstaller will:
+- ✅ Backup all files before removal
+- ✅ Disable and remove virtual hosts
+- ✅ Remove PoW endpoints
+- ✅ Remove systemd rotation (optional)
+- ✅ Remove ModSecurity rules (optional)
+- ✅ Test Apache config before reload
+
+---
+
+## 🛠️ Manual Installation
+
+If you prefer manual installation:
 
 ### 1) Deploy `/__ab/` endpoints
 
