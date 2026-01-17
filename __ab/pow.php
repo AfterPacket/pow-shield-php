@@ -38,6 +38,20 @@ $BITS_PRIVACY  = 16;   // LibreWolf / hardened profiles
 $MEME_SRC = '/assets/img/clank.jpg';
 $FOOTER_GIF = '/assets/img/ahah.gif';
 
+// Pow Tier 
+
+require_once __DIR__ . '/pow_tier.php';
+
+$ip = pow_client_ip();
+$score = pow_risk_score($ip);
+$tier = pow_tier_from_score($score);
+$bits = pow_bits_for_tier($tier);
+
+[$headline, $subtext] = pow_message_for_tier($tier);
+
+// Use $bits in your JS PoW challenge generation.
+// Render $headline/$subtext in the UI.
+
 // -------------------- helpers --------------------
 function b64url_enc(string $bin): string {
   return rtrim(strtr(base64_encode($bin), '+/', '-_'), '=');
