@@ -18,6 +18,17 @@ declare(strict_types=1);
 
 $COOKIE_NAME = 'abp';
 $COOKIE_TTL  = 60 * 60 * 6; // 6 hours
+// POW Tier
+
+require_once __DIR__ . '/pow_tier.php';
+
+$ip = pow_client_ip();
+
+if ($valid_solution) {
+  pow_mark_trusted($ip);
+} else {
+  pow_mark_failed($ip);
+}
 
 // -------------------- helpers --------------------
 function b64url_enc(string $bin): string {
