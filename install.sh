@@ -562,24 +562,28 @@ configure_default_vhost() {
     # PoW Protection Rules
     RewriteEngine On
     
-     # 0) Skip /status/ entirely (no PoW)
-  RewriteRule ^status/ - [L]
+     # ---- 1) Always skip /status/ entirely ----
+ #    RewriteRule ^/status/ - [L]
 
-  
-  # 1) Skip the anti-bot endpoints themselves (prevents loops)
-  RewriteRule ^__ab/ - [L]
+    # ---- 1) Always githup api   entirely ----
+    RewriteRule ^/api/github/users/AfterPacket/repos - [L]
 
-  # 2) Only gate GET/HEAD (never gate POST; verify must work)
-  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
-  RewriteRule ^ - [L]
 
-  # 3) Skip common static assets
-  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+    # ---- 2) Skip anti-bot endpoints themselves ----
+    RewriteRule ^/__ab/ - [L]
 
-  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
-  # Expect abp=ts.exp.uaHash.sig
-  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
-  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
+    # ---- 3) Only gate GET/HEAD (never gate POST; verify must work) ----
+    RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+    RewriteRule ^ - [L]
+
+    # ---- 4) Skip common static assets ----
+    RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+    # ---- 5) If missing abp cookie, internally serve PoW while keeping original URL ----
+# v2 cookie format: abp=v2.<b64url_payload>.<b64url_sig>
+RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=v2\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
+
     
     <Directory $WEBROOT>
         Options -Indexes +FollowSymLinks
@@ -627,23 +631,28 @@ EOF
         # PoW Protection Rules
         RewriteEngine On
         
-         # 0) Skip /status/ entirely (no PoW)
-  RewriteRule ^status/ - [L]
+         # ---- 1) Always skip /status/ entirely ----
+ #    RewriteRule ^/status/ - [L]
 
-  
-  # 1) Skip the anti-bot endpoints themselves (prevents loops)
-  RewriteRule ^__ab/ - [L]
+    # ---- 1) Always githup api   entirely ----
+    RewriteRule ^/api/github/users/AfterPacket/repos - [L]
 
-  # 2) Only gate GET/HEAD (never gate POST; verify must work)
-  RewriteRule ^ - [L]
 
-  # 3) Skip common static assets
-  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+    # ---- 2) Skip anti-bot endpoints themselves ----
+    RewriteRule ^/__ab/ - [L]
 
-  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
-  # Expect abp=ts.exp.uaHash.sig
-  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
-  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
+    # ---- 3) Only gate GET/HEAD (never gate POST; verify must work) ----
+    RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+    RewriteRule ^ - [L]
+
+    # ---- 4) Skip common static assets ----
+    RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+    # ---- 5) If missing abp cookie, internally serve PoW while keeping original URL ----
+# v2 cookie format: abp=v2.<b64url_payload>.<b64url_sig>
+RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=v2\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
+
         
         <Directory $WEBROOT>
             Options -Indexes +FollowSymLinks
