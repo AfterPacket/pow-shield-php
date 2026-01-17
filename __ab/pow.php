@@ -27,6 +27,7 @@ if ($SECRET === '' || strlen($SECRET) < 48) {
   exit;
 }
 
+
 $COOKIE_NAME   = 'abp';
 $CHALLENGE_TTL = 120;
 
@@ -38,8 +39,7 @@ $BITS_PRIVACY  = 16;   // LibreWolf / hardened profiles
 $MEME_SRC = '/assets/img/clank.jpg';
 $FOOTER_GIF = '/assets/img/ahah.gif';
 
-// Pow Tier 
-
+//POW TIER 
 require_once __DIR__ . '/pow_tier.php';
 
 $ip = pow_client_ip();
@@ -48,6 +48,17 @@ $tier = pow_tier_from_score($score);
 $bits = pow_bits_for_tier($tier);
 
 [$headline, $subtext] = pow_message_for_tier($tier);
+
+// near the top after you compute $tier/$bits
+if (isset($_GET['debug']) && $_GET['debug'] === '1') {
+  $allow = ['']; // or read from env
+  $rip = $_SERVER['REMOTE_ADDR'] ?? '';
+  if ($debug) {
+  header("X-AB-Tier: " . (string)$tier);
+  header("X-AB-Score: " . (string)$score);
+  header("X-AB-Bits: " . (string)$BITS);
+}
+}
 
 // Use $bits in your JS PoW challenge generation.
 // Render $headline/$subtext in the UI.
@@ -171,9 +182,14 @@ $target = $next . ($qs !== '' ? (strpos($next, '?') !== false ? '&' : '?') . $qs
 $isMobile  = is_mobile_ua();
 $isPrivacy = is_privacy_ua();
 
-$BITS = $isMobile ? $BITS_MOBILE : $BITS_DESKTOP;
+// Tier sets baseline
+$BITS = $bits; // <-- use tier result
+
+// Then apply UA safety caps (reduce difficulty if needed)
+if ($isMobile)  $BITS = min($BITS, $BITS_MOBILE);
 if ($isPrivacy) $BITS = min($BITS, $BITS_PRIVACY);
 
+// TTL tuning stays the same
 $challengeTtl = $CHALLENGE_TTL;
 if ($isMobile)  $challengeTtl = max(180, $challengeTtl);
 if ($isPrivacy) $challengeTtl = max(300, $challengeTtl);
@@ -360,11 +376,9 @@ header(
           <img src="<?= h($MEME_SRC) ?>" alt="">
         </div>
 
-        <div class="title">Checking your browser…</div>
-        <div class="sub">
-          This site uses a lightweight proof-of-work check to reduce abusive traffic.
-          It should complete quickly for normal visitors.
-        </div>
+       <div class="title"><?= h($headline) ?></div>
+<div class="sub"><?= h($subtext) ?></div>
+
 
         <div class="bar" aria-label="Progress"><div id="pbar"></div></div>
 
