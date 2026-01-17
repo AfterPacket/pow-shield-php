@@ -50,15 +50,15 @@ $bits = pow_bits_for_tier($tier);
 [$headline, $subtext] = pow_message_for_tier($tier);
 
 // near the top after you compute $tier/$bits
-if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-  $allow = ['']; // or read from env
-  $rip = $_SERVER['REMOTE_ADDR'] ?? '';
-  if ($debug) {
-  header("X-AB-Tier: " . (string)$tier);
-  header("X-AB-Score: " . (string)$score);
-  header("X-AB-Bits: " . (string)$BITS);
-}
-}
+#if (isset($_GET['debug']) && $_GET['debug'] === '1') {
+#  $allow = ['173.62.3.158']; // or read from env
+#  $rip = $_SERVER['REMOTE_ADDR'] ?? '';
+#  if ($debug) {
+# header("X-AB-Tier: " . (string)$tier);
+#  header("X-AB-Score: " . (string)$score);
+#  header("X-AB-Bits: " . (string)$BITS);
+#}
+#}
 
 // Use $bits in your JS PoW challenge generation.
 // Render $headline/$subtext in the UI.
@@ -377,8 +377,8 @@ header(
         </div>
 
        <div class="title"><?= h($headline) ?></div>
-<div class="sub"><?= h($subtext) ?></div>
-
+    This site uses a lightweight proof-of-work check to reduce abusive traffic.
+          It should complete quickly for normal visitors.
 
         <div class="bar" aria-label="Progress"><div id="pbar"></div></div>
 
