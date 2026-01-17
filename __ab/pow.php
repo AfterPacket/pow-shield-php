@@ -51,7 +51,7 @@ $bits = pow_bits_for_tier($tier);
 
 // near the top after you compute $tier/$bits
 #if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-#  $allow = ['173.62.3.158']; // or read from env
+#  $allow = ['']; // or read from env
 #  $rip = $_SERVER['REMOTE_ADDR'] ?? '';
 #  if ($debug) {
 # header("X-AB-Tier: " . (string)$tier);
