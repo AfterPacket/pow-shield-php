@@ -562,7 +562,7 @@ configure_default_vhost() {
     # PoW Protection Rules
     RewriteEngine On
     
-     # ---- 1) Always skip /status/ entirely ----
+     # ---- 0) Always skip /status/ entirely ----
  #    RewriteRule ^/status/ - [L]
 
     # ---- 1) Always githup api   entirely ----
@@ -631,7 +631,7 @@ EOF
         # PoW Protection Rules
         RewriteEngine On
         
-         # ---- 1) Always skip /status/ entirely ----
+         # ---- 0) Always skip /status/ entirely ----
  #    RewriteRule ^/status/ - [L]
 
     # ---- 1) Always githup api   entirely ----
