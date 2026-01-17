@@ -36,6 +36,7 @@ $BITS_PRIVACY  = 16;   // LibreWolf / hardened profiles
 
 // Host this locally
 $MEME_SRC = '/assets/img/clank.jpg';
+$FOOTER_GIF = '/assets/img/ahah.gif';
 
 // -------------------- helpers --------------------
 function b64url_enc(string $bin): string {
@@ -320,6 +321,19 @@ header(
     .pow-credit a:hover{text-decoration:underline}
     @media (max-width:420px){.pow-credit .txt{font-size:11px;white-space:normal}}
     @media (prefers-reduced-motion: reduce){.bar>div{transition:none}}
+                             
+                             .pow-credit .gifmark{
+  width: 50px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+ 
+  object-fit: cover;
+}
+@media (max-width:420px){
+  .pow-credit .gifmark{ width: 20px; height: 20px; }
+}
+
   </style>
 </head>
 
@@ -361,22 +375,18 @@ header(
 
         <div class="pow-footer" role="contentinfo">
           <div class="pow-credit">
-            <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <defs>
-                <linearGradient id="apg" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stop-color="#60a5fa"/>
-                  <stop offset="0.5" stop-color="#a78bfa"/>
-                  <stop offset="1" stop-color="#fb7185"/>
-                </linearGradient>
-              </defs>
-              <path fill="url(#apg)" d="M12 2.4c.2 0 .3 0 .5.1l7 2.7c.4.1.7.6.7 1v6.4c0 5-3.2 8.7-7.7 10.4-.3.1-.7.1-1 0C7 21.3 3.8 17.6 3.8 12.6V6.2c0-.4.3-.8.7-1l7-2.7c.2-.1.3-.1.5-.1z"/>
-              <path fill="rgba(7,10,20,.92)" d="M13.2 6.6 8.8 13h3.1l-1 4.4 4.4-6.4h-3.1l1-4.4z"/>
-            </svg>
-            <span class="txt">
-              PoW Shield • Created By&nbsp;
-              <a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">AfterPacket</a>
-            </span>
-          </div>
+           
+
+    <img class="gifmark" src="<?= h($FOOTER_GIF) ?>" alt="" aria-hidden="true" loading="lazy">
+
+    <span class="txt">
+     <center> PoW Shield • Created By&nbsp;
+      <a href="https://github.com/AfterPacket" target="_blank" rel="noopener noreferrer nofollow">AfterPacket</a></center>
+    </span>
+
+  
+</div>
+
         </div>
 
       </div>
