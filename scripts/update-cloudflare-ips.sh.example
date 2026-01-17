@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+
+DIR="/etc/apache2/cloudflare"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+curl -fsSL https://www.cloudflare.com/ips-v4 -o "$tmp/ips-v4.txt"
+curl -fsSL https://www.cloudflare.com/ips-v6 -o "$tmp/ips-v6.txt"
+
+install -m 0644 "$tmp/ips-v4.txt" "$DIR/ips-v4.txt"
+install -m 0644 "$tmp/ips-v6.txt" "$DIR/ips-v6.txt"
+
+apachectl -t
+systemctl reload apache2
