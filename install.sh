@@ -562,20 +562,24 @@ configure_default_vhost() {
     # PoW Protection Rules
     RewriteEngine On
     
-    # Skip __ab endpoints (prevents loops)
-    RewriteCond %{REQUEST_URI} !^/__ab/
-    
-    # Skip static assets
-    RewriteCond %{REQUEST_URI} !\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|map|pdf|zip|txt|xml)$ [NC]
-    
-    # Only apply to GET/HEAD requests
-    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
-    
-    # Check for abp cookie
-    RewriteCond %{HTTP_COOKIE} !abp= [NC]
-    
-    # Redirect to PoW challenge
-    RewriteRule ^(.*)$ /__ab/pow.php?next=\$1&qs=%{QUERY_STRING} [L,R=302]
+     # 0) Skip /status/ entirely (no PoW)
+  RewriteRule ^status/ - [L]
+
+  
+  # 1) Skip the anti-bot endpoints themselves (prevents loops)
+  RewriteRule ^__ab/ - [L]
+
+  # 2) Only gate GET/HEAD (never gate POST; verify must work)
+  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+  RewriteRule ^ - [L]
+
+  # 3) Skip common static assets
+  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
+  # Expect abp=ts.exp.uaHash.sig
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
     
     <Directory $WEBROOT>
         Options -Indexes +FollowSymLinks
@@ -623,20 +627,24 @@ EOF
         # PoW Protection Rules
         RewriteEngine On
         
-        # Skip __ab endpoints (prevents loops)
-        RewriteCond %{REQUEST_URI} !^/__ab/
-        
-        # Skip static assets
-        RewriteCond %{REQUEST_URI} !\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|map|pdf|zip|txt|xml)$ [NC]
-        
-        # Only apply to GET/HEAD requests
-        RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
-        
-        # Check for abp cookie
-        RewriteCond %{HTTP_COOKIE} !abp= [NC]
-        
-        # Redirect to PoW challenge
-        RewriteRule ^(.*)$ /__ab/pow.php?next=\$1&qs=%{QUERY_STRING} [L,R=302]
+         # 0) Skip /status/ entirely (no PoW)
+  RewriteRule ^status/ - [L]
+
+  
+  # 1) Skip the anti-bot endpoints themselves (prevents loops)
+  RewriteRule ^__ab/ - [L]
+
+  # 2) Only gate GET/HEAD (never gate POST; verify must work)
+  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+  RewriteRule ^ - [L]
+
+  # 3) Skip common static assets
+  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
+  # Expect abp=ts.exp.uaHash.sig
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
         
         <Directory $WEBROOT>
             Options -Indexes +FollowSymLinks
@@ -728,27 +736,24 @@ EOF
     SSLEngine on
 $ssl_config
     
-    # Include PoW secret
-    IncludeOptional /etc/apache2/pow.env
-    
-    # PoW Protection Rules
-    # Skip PoW for static assets and specific paths
-    RewriteEngine On
-    
-    # Skip __ab endpoints (prevents loops)
-    RewriteCond %{REQUEST_URI} !^/__ab/
-    
-    # Skip static assets
-    RewriteCond %{REQUEST_URI} !\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|map|pdf|zip|txt|xml)$ [NC]
-    
-    # Only apply to GET/HEAD requests
-    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
-    
-    # Check for abp cookie
-    RewriteCond %{HTTP_COOKIE} !abp= [NC]
-    
-    # Redirect to PoW challenge
-    RewriteRule ^(.*)$ /__ab/pow.php?next=\$1&qs=%{QUERY_STRING} [L,R=302]
+    # 0) Skip /status/ entirely (no PoW)
+  RewriteRule ^status/ - [L]
+
+  
+  # 1) Skip the anti-bot endpoints themselves (prevents loops)
+  RewriteRule ^__ab/ - [L]
+
+  # 2) Only gate GET/HEAD (never gate POST; verify must work)
+  RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+  RewriteRule ^ - [L]
+
+  # 3) Skip common static assets
+  RewriteRule \.(?:css|js|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$ - [L,NC]
+
+  # 4) If missing PoW pass cookie, internally serve challenge while keeping original URL
+  # Expect abp=ts.exp.uaHash.sig
+  RewriteCond %{HTTP:Cookie} !(^|;\s*)abp=\d+\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(;|$) [NC]
+  RewriteRule ^ /__ab/pow.php?next=%{REQUEST_URI}&qs=%{QUERY_STRING} [PT,L,NE]
     
     <Directory $WEBROOT>
         Options -Indexes +FollowSymLinks
